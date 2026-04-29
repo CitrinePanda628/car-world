@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Driving Sim</title>
+<style>
+   * { box-sizing: border-box; margin: 0; padding: 0; }
+   body {
+      background: #0d0d0f;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      color: #ddd;
+      overflow: hidden;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+   }
+   header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 18px; background: #141418; border-bottom: 1px solid #222;
+   }
+   header h1 { font-size: 0.95rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: #f0f0f0; }
+   header .subtitle { font-size: 0.7rem; color: #666; letter-spacing: 0.04em; margin-top: 2px; }
+
+   .toolbar { display: flex; gap: 8px; align-items: center; }
+   .toolbar button {
+      background: #252528; border: 1px solid #333; color: #ccc;
+      padding: 7px 12px; border-radius: 5px; font-size: 0.82rem;
+      cursor: pointer; transition: background 0.15s;
+   }
+   .toolbar button:hover { background: #303036; color: #fff; }
+   .toolbar button.primary { background: #2a4d2a; border-color: #3a6a3a; color: #9cdb9c; }
+   .toolbar select {
+      background: #252528; border: 1px solid #333; color: #ccc;
+      padding: 7px 10px; border-radius: 5px; font-size: 0.82rem;
+      font-family: inherit; cursor: pointer;
+   }
+   .toolbar select:hover { background: #303036; color: #fff; }
+   .sep { width: 1px; height: 22px; background: #2e2e2e; margin: 0 4px; }
+
+   .tool-btn {
+      background: #1f1f22 !important; border: 1px solid #2a2a30 !important;
+      color: #999 !important; padding: 7px 10px !important; font-size: 1rem !important;
+      min-width: 42px;
+   }
+   .tool-btn.active { background: #ffcc00 !important; border-color: #ffcc00 !important; color: #111 !important; }
+   .tool-btn#btn-sim.active { background: #e53935 !important; border-color: #e53935 !important; color: #fff !important; }
+
+   .mode-btn {
+      background: #1f1f22 !important; border: 1px solid #2a2a30 !important;
+      color: #bbb !important; padding: 6px 12px !important; font-size: 0.78rem !important;
+   }
+   .mode-btn.active { background: #3d4e6b !important; border-color: #66ccff !important; color: #fff !important; }
+
+   main { flex: 1; position: relative; overflow: hidden; }
+   #myCanvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
+
+   .hint-bar {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      padding: 6px 16px; background: rgba(10, 10, 12, 0.85);
+      border-top: 1px solid #222; font-size: 0.72rem; color: #888;
+      letter-spacing: 0.03em; pointer-events: none;
+   }
+   .hint-bar kbd {
+      background: #2a2a30; border: 1px solid #444; border-radius: 3px;
+      padding: 1px 6px; font-size: 0.7rem; color: #ccc;
+   }
+
+   #props, #carOptions, #lightOptions, #statsPanel {
+      position: absolute;
+      background: rgba(22, 22, 26, 0.96); border: 1px solid #333;
+      border-radius: 8px; padding: 14px 16px;
+      backdrop-filter: blur(6px); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+   }
+   #props    { top: 12px; right: 12px; width: 260px; }
+   #carOptions, #lightOptions { top: 12px; left: 12px; width: 220px; }
+   #statsPanel { bottom: 50px; left: 12px; width: 220px; }
+   #props.hidden, #carOptions.hidden, #lightOptions.hidden, #statsPanel.hidden, #speedBar.hidden, #decisionPanel.hidden { display: none; }
+   #props h3, #carOptions h3, #lightOptions h3, #statsPanel h3 {
+      font-size: 0.78rem; font-weight: 600; letter-spacing: 0.08em;
+      text-transform: uppercase; color: #ffcc00; margin-bottom: 12px;
+   }
+   .stat-row {
+      display: flex; justify-content: space-between;
+      padding: 4px 0; font-size: 0.78rem;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+   }
+   .stat-row:last-child { border-bottom: none; }
+   .stat-row span { color: #aaa; }
+   .stat-row b { color: #eee; font-weight: 600; }
+   .stat-row.score { margin-top: 6px; padding-top: 8px; border-top: 1px solid #333; }
+   .stat-row.score-good b { color: #4caf50; }
+   .stat-row.score-mid  b { color: #ffcc00; }
+   .stat-row.score-bad  b { color: #e53935; }
+      font-size: 0.78rem; font-weight: 600; letter-spacing: 0.08em;
+      text-transform: uppercase; color: #ffcc00; margin-bottom: 12px;
+   }
+   .field { margin-bottom: 10px; }
+   .field label { display: block; font-size: 0.72rem; color: #aaa; margin-bottom: 4px; }
+   .field label.check { display: flex; align-items: center; gap: 8px; color: #ccc; }
+   .field input[type="number"] {
+      width: 100%; background: #1a1a1e; border: 1px solid #333;
+      color: #eee; padding: 6px 8px; border-radius: 4px; font-size: 0.85rem;
+   }
+   .field .hint { font-size: 0.66rem; color: #666; margin-top: 3px; }
+   #props button.danger {
+      width: 100%; margin-top: 8px;
+      background: #3a1a1a; border: 1px solid #5a2a2a;
+      color: #e88; padding: 7px; border-radius: 4px; cursor: pointer; font-size: 0.82rem;
+   }
+
+   .pers-group { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+   .pers-btn {
+      background: #1f1f22; border: 1px solid #333; color: #bbb;
+      padding: 7px 12px; border-radius: 5px; font-size: 0.82rem;
+      cursor: pointer; text-align: left;
+   }
+   .pers-btn.active { background: #3a4a5a; border-color: #66ccff; color: #fff; }
+   .pers-btn .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 8px; vertical-align: middle; }
+   .main-check label {
+      display: flex; align-items: center; gap: 8px; color: #ccc;
+      font-size: 0.82rem; padding: 6px 10px;
+      background: #1a1a1e; border: 1px solid #333; border-radius: 5px; cursor: pointer;
+   }
+
+   /* ── Speed control bar ── */
+   #speedBar {
+      position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+      background: rgba(22, 22, 26, 0.96); border: 1px solid #333;
+      border-radius: 8px; padding: 6px 8px;
+      display: flex; gap: 4px; align-items: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+   }
+   #speedBar .label { font-size: 0.7rem; color: #777; padding: 0 6px; letter-spacing: 0.05em; }
+   .speed-btn {
+      background: #1f1f22; border: 1px solid #333; color: #bbb;
+      padding: 5px 10px; border-radius: 4px; font-size: 0.8rem;
+      cursor: pointer; min-width: 40px;
+   }
+   .speed-btn:hover { background: #2c2c32; color: #fff; }
+   .speed-btn.active { background: #66ccff; border-color: #66ccff; color: #111; }
+
+   /* ── Narrator ── */
+   #narrator {
+      position: absolute;
+      bottom: 50px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      max-width: 520px;
+      padding: 12px 22px;
+      background: rgba(15, 15, 20, 0.94);
+      border: 1px solid rgba(102, 204, 255, 0.5);
+      border-radius: 10px;
+      color: #e8e8f0;
+      font-size: 0.9rem;
+      line-height: 1.35;
+      text-align: center;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6),
+                  0 0 32px rgba(102, 204, 255, 0.15);
+      opacity: 0;
+      transition: opacity 0.35s, transform 0.35s;
+      pointer-events: none;
+   }
+   #narrator.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+   #narrator::before { content: '💬'; margin-right: 8px; opacity: 0.8; }
+
+   #goalBanner {
+      position: absolute;
+      top: 80px; left: 50%;
+      transform: translateX(-50%) translateY(-30px);
+      padding: 18px 32px;
+      background: rgba(20, 50, 25, 0.96);
+      border: 2px solid #4caf50;
+      border-radius: 12px;
+      color: #fff;
+      text-align: center;
+      box-shadow: 0 12px 40px rgba(76, 175, 80, 0.4),
+                  0 0 32px rgba(76, 175, 80, 0.25);
+      opacity: 0;
+      transition: opacity 0.4s, transform 0.4s;
+      pointer-events: none;
+      z-index: 50;
+   }
+   #goalBanner.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+   #goalBanner .goal-title { font-size: 1.3rem; font-weight: 600; margin-bottom: 6px; color: #b8ebb8; }
+   #goalBanner .goal-stats { font-size: 0.85rem; color: #c8e8c8; }
+
+   /* ── Decision side panel (was centre overlay, now on the right) ── */
+   #decisionPanel {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 320px;
+      background: #181820;
+      border: 1px solid #3a3a4a;
+      border-radius: 12px;
+      padding: 20px 22px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7);
+   }
+   #moreMenu {
+   display: none !important;
+}
+   #decisionPanel h2 {
+      font-size: 0.72rem; font-weight: 600; letter-spacing: 0.15em;
+      text-transform: uppercase; color: #66ccff; margin-bottom: 12px;
+   }
+   #decisionQuestion { font-size: 1rem; color: #f0f0f0; margin-bottom: 16px; line-height: 1.4; }
+   #decisionOptions { display: flex; flex-direction: column; gap: 7px; }
+   .decision-option {
+      background: #232330; border: 1px solid #383848; color: #ddd;
+      padding: 10px 12px; border-radius: 6px; font-size: 0.88rem;
+      cursor: pointer; text-align: left; transition: background 0.15s;
+   }
+   .decision-option:hover:not(:disabled) { background: #2c2c3c; border-color: #4a4a5c; }
+   .decision-option.correct { background: #1f3a1f !important; border-color: #4caf50 !important; color: #b8ebb8 !important; }
+   .decision-option.wrong   { background: #3a1f1f !important; border-color: #e53935 !important; color: #ebb8b8 !important; }
+   .decision-option:disabled { cursor: default; }
+   .decision-continue {
+      margin-top: 10px;
+      background: #2a4d2a; border: 1px solid #3a6a3a; color: #9cdb9c;
+      padding: 8px; border-radius: 5px; font-size: 0.85rem; cursor: pointer;
+   }
+   .decision-continue:hover { background: #335933; }
+   .feedback {
+      margin-top: 12px; padding: 9px 11px; border-radius: 6px;
+      font-size: 0.82rem; line-height: 1.4;
+   }
+   .feedback.correct { background: rgba(76, 175, 80, 0.18); border-left: 3px solid #4caf50; color: #cbe8cb; }
+   .feedback.wrong   { background: rgba(229, 57, 53, 0.18); border-left: 3px solid #e53935; color: #e8cbcb; }
+</style>
+</head>
+<body>
+
+<header>
+   <div>
+      <h1>Driving Sim</h1>
+      <div class="subtitle">A teaching tool · UK driving</div>
+   </div>
+   <div class="toolbar">
+      <button id="btn-road" class="tool-btn" title="Draw roads">🛣️</button>
+      <button id="btn-stop" class="tool-btn" title="Stop sign">🛑</button>
+      <button id="btn-yield" class="tool-btn" title="Yield">⚠️</button>
+      <button id="btn-light" class="tool-btn" title="Traffic light">🚦</button>
+      <button id="btn-car" class="tool-btn" title="Place car">🚗</button>
+      <button id="btn-closure" class="tool-btn" title="Road closure">🚧</button>
+      <button id="btn-crossing" class="tool-btn" title="Pelican crossing (yellow signal)">🚸</button>
+      <button id="btn-speedlimit" class="tool-btn" title="Speed limit sign">🔢</button>
+      <button id="btn-start" class="tool-btn" title="Start point (main car spawn)">🏁</button>
+      <button id="btn-end" class="tool-btn" title="Goal point (destination)">🎯</button>
+      <div class="sep"></div>
+      <button class="mode-btn active" data-mode="teach">Teach</button>
+      <button class="mode-btn" data-mode="decision">Decision</button>
+      <div class="sep"></div>
+      <button id="btn-sim" class="tool-btn" title="Run simulation">▶</button>
+      <button id="btn-restart" class="tool-btn" title="Restart simulation">↻</button>
+      <button id="btn-debug" class="tool-btn" title="Toggle debug overlay">🔍</button>
+      <button id="btn-debug-export" class="tool-btn" title="Show machine-readable debug snapshot">📋</button>
+      <div class="sep"></div>
+      <select id="scenarioSelect" title="Load a demo scenario">
+         <option value="">Load demo…</option>
+         <option value="busy-overtake">Busy dual-carriageway</option>
+         <option value="signalled-crossroads">Signalled crossroads</option>
+         <option value="urban-route">Urban route</option>
+         <option value="closure-detour">Lane closure</option>
+         <option value="rush-hour">Rush hour grid</option>
+         <option value="showcase">Grand showcase (everything)</option>
+         <option value="highway-merge">Highway merge</option>
+         <option value="roundabout">Roundabout</option>
+         <option value="roundabout-large">Roundabout (2 lanes)</option>
+      </select>
+      <button id="btnUndo" title="Undo (Ctrl+Z)">↶</button>
+      <button id="btnRedo" title="Redo (Ctrl+Y)">↷</button>
+      <select id="savesSelect" title="Saved scenarios">
+         <option value="">My saves…</option>
+      </select>
+      <button id="btnSave" class="primary">Save</button>
+      <button id="btnMore" title="More actions">⋯</button>
+      <div id="moreMenu" class="transparent">
+         <button id="btnImport"></button>
+         <button id="btnExport"></button>
+         <button id="btnClear" style="color:#e88;"></button>
+      </div>
+   </div>
+</header>
+
+<main>
+   <canvas id="myCanvas"></canvas>
+
+   <!-- <aside id="debugExportPanel" class="hidden" style="position:absolute;top:80px;right:20px;width:560px;max-height:88vh;background:rgba(20,22,28,0.96);border:1px solid #555;border-radius:6px;padding:10px;z-index:100;display:flex;flex-direction:column;gap:6px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+         <strong style="color:#fff;font-size:14px;">Debug Snapshot</strong>
+         <div style="display:flex;gap:4px;">
+            <button id="debugRefresh" style="font-size:13px;padding:2px 8px;">Refresh</button>
+            <button id="debugCopy" style="font-size:13px;padding:2px 8px;">Copy</button>
+            <button id="debugClose" title="Close panel" style="font-size:18px;line-height:1;padding:2px 10px;background:#622;border:1px solid #944;color:#fff;cursor:pointer;border-radius:4px;font-weight:bold;">×</button>
+         </div>
+      </div>
+      <div style="display:flex;gap:6px;font-size:12px;">
+         <button id="debugTabState" class="debug-tab active" style="flex:1;background:#234;border:1px solid #456;color:#fff;padding:4px;cursor:pointer;">State Snapshot</button>
+         <button id="debugTabHistory" class="debug-tab" style="flex:1;background:#1a1d24;border:1px solid #333;color:#bbb;padding:4px;cursor:pointer;">Action History</button>
+      </div>
+      <textarea id="debugExportText" readonly style="flex:1;background:#0a0c10;color:#bfd;font-family:monospace;font-size:13px;line-height:1.45;border:1px solid #333;padding:8px;resize:vertical;height:65vh;"></textarea>
+      <div style="font-size:12px;color:#aaa;">Auto-refreshes every 30 frames while sim runs. Switch tabs for state vs history.</div>
+   </aside> -->
+
+   <aside id="carOptions" class="hidden">
+      <h3>Place a car</h3>
+      <div class="pers-group">
+         <button class="pers-btn active" data-pers="good">
+            <span class="dot" style="background:#4caf50"></span>Good driver
+         </button>
+         <button class="pers-btn" data-pers="aggressive">
+            <span class="dot" style="background:#e53935"></span>Aggressive
+         </button>
+         <button class="pers-btn" data-pers="passive">
+            <span class="dot" style="background:#8a95a0"></span>Passive / slow
+         </button>
+         <button class="pers-btn" data-pers="distracted">
+            <span class="dot" style="background:#ab47bc"></span>Distracted
+         </button>
+      </div>
+      <div class="main-check">
+         <label>
+            <input type="checkbox" id="isMainToggle">
+            Main car (student)
+         </label>
+      </div>
+   </aside>
+
+   <aside id="lightOptions" class="hidden">
+      <h3>Traffic light</h3>
+      <div class="main-check">
+         <label>
+            <input type="checkbox" id="syncLightsToggle">
+            Sync opposite direction
+         </label>
+      </div>
+      <div class="hint" style="font-size:0.7rem;color:#888;margin-top:8px;line-height:1.4">
+         Places a matching light on the oncoming lane so both directions cycle together.
+      </div>
+   </aside>
+
+   <aside id="props" class="hidden">
+      <h3>Road properties</h3>
+      <div id="propsBody"></div>
+   </aside>
+
+   <div id="speedBar" class="hidden">
+      <span class="label">SPEED</span>
+      <button class="speed-btn" data-speed="0" title="Pause">⏸</button>
+      <button class="speed-btn" data-speed="0.25">¼×</button>
+      <button class="speed-btn" data-speed="0.5">½×</button>
+      <button class="speed-btn active" data-speed="1">1×</button>
+      <button class="speed-btn" data-speed="2">2×</button>
+   </div>
+
+   <div id="narrator"></div>
+
+   <div id="goalBanner">
+      <div class="goal-title">Destination reached!</div>
+      <div class="goal-stats"></div>
+   </div>
+
+   <!-- Decision panel kept in DOM; JS refers to the same IDs as before -->
+   <div id="decisionOverlay" style="display:contents">
+      <aside id="decisionPanel" class="hidden">
+         <h2>Driving Decision</h2>
+         <div id="decisionQuestion"></div>
+         <div id="decisionOptions"></div>
+         <div class="feedback" id="decisionFeedback"></div>
+      </aside>
+   </div>
+
+   <div class="hint-bar">
+      🛣️ Draw road · 🛑/⚠️/🚦 Place sign · 🚗 Place car · ▶ Run · <kbd>Del</kbd> delete · <kbd>Esc</kbd> cancel · <kbd>Middle-drag</kbd> pan · <kbd>Wheel</kbd> zoom
+   </div>
+</main>
+
+<input type="file" id="fileInput" accept=".json" style="display:none">
+
+<!-- Core -->
+<script src="js/core/utils.js"></script>
+<script src="js/core/viewport.js"></script>
+<script src="js/core/road.js"></script>
+<script src="js/core/intersection.js"></script>
+<script src="js/core/markings.js"></script>
+<script src="js/core/markings_extra.js"></script>
+<script src="js/core/roadNetwork.js"></script>
+<script src="js/core/roadEditor.js"></script>
+<script src="js/core/markingEditor.js"></script>
+<script src="js/core/carEditor.js"></script>
+<script src="js/core/closures.js"></script>
+<script src="js/core/closureEditor.js"></script>
+<script src="js/core/crossingDetector.js"></script>
+
+<!-- Cars -->
+<script src="js/cars/personality.js"></script>
+<script src="js/cars/car.js"></script>
+
+<!-- UI + Teaching layer -->
+<script src="js/ui/safetyCircle.js"></script>
+<script src="js/ui/debugOverlay.js"></script>
+<script src="js/ui/debugExport.js"></script>
+<script src="js/teaching/narrator.js"></script>
+<script src="js/teaching/stats.js"></script>
+<script src="js/teaching/decisions.js"></script>
+
+<!-- AI -->
+<script src="js/ai/junctionArbiter.js"></script>
+
+<!-- Runtime -->
+<script src="js/core/simulation.js"></script>
+<script src="js/core/history.js"></script>
+
+<!-- Scenarios -->
+<script src="js/scenarios/scenarios.js"></script>
+
+<!-- Entry -->
+<script src="js/main.js"></script>
+</body>
+</html>
